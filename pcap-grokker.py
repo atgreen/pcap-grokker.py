@@ -4,11 +4,12 @@ from scapy.all import rdpcap, TCP
 from collections import defaultdict
 import matplotlib.pyplot as plt
 
-if len(sys.argv) != 2:
-    print(f"Usage: {sys.argv[0]} <pcap_file>")
+if len(sys.argv) < 2 or len(sys.argv) > 3:
+    print(f"Usage: {sys.argv[0]} <pcap_file> [dest_port]")
     sys.exit(1)
 
 pcap_file = sys.argv[1]
+dest_port_filter = int(sys.argv[2]) if len(sys.argv) == 3 else None
 base_name = os.path.splitext(os.path.basename(pcap_file))[0]
 
 # Load packets
@@ -23,13 +24,21 @@ timestamps = defaultdict(list)    # flow_id -> list of timestamps
 total_tcp_packets = 0
 retransmissions = 0
 
-print(f"Analyzing {pcap_file}...\n")
+if dest_port_filter:
+    print(f"Analyzing {pcap_file} with destination port filter: {dest_port_filter}\n")
+else:
+    print(f"Analyzing {pcap_file} (no destination port filter)\n")
 
 for pkt in packets:
     if TCP in pkt:
-        total_tcp_packets += 1
         ip_layer = pkt['IP']
         tcp_layer = pkt['TCP']
+
+        # Apply destination port filter if provided
+        if dest_port_filter and tcp_layer.dport != dest_port_filter:
+            continue
+
+        total_tcp_packets += 1
         flow_id = (ip_layer.src, ip_layer.dst, tcp_layer.sport, tcp_layer.dport)
         seq_num = tcp_layer.seq
         ts = pkt.time
@@ -49,6 +58,10 @@ for pkt in packets:
 print(f"Total TCP packets: {total_tcp_packets}")
 print(f"Retransmissions detected: {retransmissions}")
 print(f"Total unique flows: {len(flows)}\n")
+
+if not flows:
+    print("No flows matched the filter. Exiting.")
+    sys.exit(0)
 
 # Analyze and save plot for each flow
 for flow, ws_list in window_sizes.items():
@@ -82,7 +95,7 @@ for flow, ws_list in window_sizes.items():
     # Sanitize filename
     flow_str = f"{flow[0]}_{flow[1]}_{flow[2]}_{flow[3]}"
     filename = f"{base_name}_flow_{flow_str}.png"
-    filename = filename.replace(":", "_")  # Remove colons from IPv6 (if any)
+    filename = filename.replace(":", "_")  # Remove colons (IPv6)
 
     plt.savefig(filename)
     plt.close()
