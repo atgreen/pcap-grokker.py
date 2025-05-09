@@ -67,6 +67,11 @@ if not flows:
 for flow, ws_list in window_sizes.items():
     window_values = [w for (_, w) in ws_list]
     times = timestamps[flow]
+
+    # Normalize time: subtract the first timestamp so time starts at 0
+    time_start = times[0]
+    norm_times = [t - time_start for t in times]
+
     gaps = [t2 - t1 for t1, t2 in zip(times[:-1], times[1:])]
 
     num_packets = len(ws_list)
@@ -85,9 +90,9 @@ for flow, ws_list in window_sizes.items():
 
     # Create plot
     plt.figure(figsize=(10, 5))
-    plt.plot(times, window_values, marker='o', linestyle='-', markersize=2)
+    plt.plot(norm_times, window_values, marker='o', linestyle='-', markersize=2)
     plt.title(f"Window Size Over Time\nFlow {flow}")
-    plt.xlabel("Time (seconds since epoch)")
+    plt.xlabel("Time (seconds, starting at 0)")
     plt.ylabel("TCP Window Size (bytes)")
     plt.grid(True)
     plt.tight_layout()
